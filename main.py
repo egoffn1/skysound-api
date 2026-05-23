@@ -1,9 +1,8 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
 import httpx
 from bs4 import BeautifulSoup
-from urllib.parse import unquote, quote
+from urllib.parse import quote
 
 app = FastAPI(title="SkySound Search API")
 
@@ -20,6 +19,10 @@ HEADERS = {
     "X-Requested-With": "XMLHttpRequest",
 }
 
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
+
 @app.get("/search")
 async def search(q: str = Query(...)):
     async with httpx.AsyncClient(follow_redirects=True, timeout=15) as c:
@@ -28,7 +31,6 @@ async def search(q: str = Query(...)):
             return {"error": "search failed"}
         data = r.json()
         url = data.get("url", "")
-        # fetch the artist page
         r2 = await c.get(url, headers=HEADERS)
         if r2.status_code != 200:
             return {"error": "page load failed"}
@@ -60,19 +62,6 @@ async def search(q: str = Query(...)):
                 "download_page": down_page,
             })
         return {"query": q, "results": results}
-
-@app.get("/stream")
-async def stream(url: str = Query(...)):
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as c:
-        r = await c.get(url)
-        return Response(content=r.content, media_type=r.headers.get("content-type", "audio/mpeg"))
-
-@app.get("/download")
-async def download(url: str = Query(...)):
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30) as c:
-        r = await c.get(url)
-        return Response(content=r.content, media_type=r.headers.get("content-type", "audio/mpeg"),
-                        headers={"Content-Disposition": 'attachment'})
 
 @app.get("/track-url")
 async def track_url(url: str = Query(...)):
